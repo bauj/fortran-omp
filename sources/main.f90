@@ -94,8 +94,7 @@ END PROGRAM MainProgramTest
 SUBROUTINE FFTW_REAL_2_COMPLEX(lx,ly,lz,tab_in, tab_tf)
 
     USE OMP_LIB
-	USE, INTRINSIC :: iso_c_binding
-	INCLUDE 'fftw3.f03'
+	IMPLICIT NONE
 
 	INTEGER(kind=4), INTENT(IN)  :: lx,ly,lz	
 	REAL(kind=8),    INTENT(IN)  :: tab_in(lx,ly,lz)
@@ -103,8 +102,8 @@ SUBROUTINE FFTW_REAL_2_COMPLEX(lx,ly,lz,tab_in, tab_tf)
 	INTEGER(kind=8)	:: plan
 	INTEGER(kind=8)	:: N_threads 
 	REAL(kind=8)	:: iRet 
-!	INTEGER				:: fftw_estimate
-!	PARAMETER(fftw_estimate=64)
+	INTEGER				:: fftw_estimate
+	PARAMETER(fftw_estimate=64)
 
 
 	!$OMP SINGLE
@@ -137,43 +136,42 @@ END SUBROUTINE FFTW_REAL_2_COMPLEX
 !____________________________________________________________________________
 SUBROUTINE FFTW_COMPLEX_2_REAL(lx,ly,lz,tab_tf, tab_out)
 
-   USE OMP_LIB
-	USE, INTRINSIC :: iso_c_binding
-	INCLUDE 'fftw3.f03'
-
-	INTEGER(kind=4), INTENT(IN)  :: lx,ly,lz	
-	COMPLEX(kind=8), INTENT(IN)  :: tab_tf(lx/2+1, ly, lz)
-	REAL(kind=8),    INTENT(OUT) :: tab_out(lx,ly,lz)
-	COMPLEX(kind=8)   :: temp_tf(lx/2+1, ly, lz)
-	INTEGER(kind=8)	:: plan
-	INTEGER(kind=8)	:: N_threads 
-	REAL(kind=8)	   :: iRet 
-!	INTEGER				:: fftw_estimate
-!	PARAMETER(fftw_estimate=64)
-
-	!$OMP SINGLE
-	temp_tf(:,:,:) = tab_tf(:,:,:)
+    USE OMP_LIB
+	IMPLICIT NONE
+    
+    INTEGER(kind=4), INTENT(IN)  :: lx,ly,lz	
+    COMPLEX(kind=8), INTENT(IN)  :: tab_tf(lx/2+1, ly, lz)
+    REAL(kind=8),    INTENT(OUT) :: tab_out(lx,ly,lz)
+    COMPLEX(kind=8) :: temp_tf(lx/2+1, ly, lz)
+    INTEGER(kind=8)	:: plan
+    INTEGER(kind=8)	:: N_threads 
+    REAL(kind=8)	:: iRet 
+    INTEGER			:: fftw_estimate
+    PARAMETER(fftw_estimate=64)
+    
+    !$OMP SINGLE
+    temp_tf(:,:,:) = tab_tf(:,:,:)
     N_threads = OMP_GET_MAX_THREADS()
-	
-	PRINT*, "Number of threads : ", N_threads	
-	CALL dfftw_init_threads(iRet)
-	IF (iRet==0) THEN
-		PRINT*, "Problem initializing FFTW mthreaded ... Quitting ..."
-		STOP
-	END IF
-
+    
+    PRINT*, "Number of threads : ", N_threads	
+    CALL dfftw_init_threads(iRet)
+    IF (iRet==0) THEN
+    	PRINT*, "Problem initializing FFTW mthreaded ... Quitting ..."
+    	STOP
+    END IF
+    
     CALL dfftw_plan_with_nthreads(N_threads)
-
-	CALL dfftw_plan_dft_c2r_3d(plan,lx,ly,lz,temp_tf,tab_out,fftw_estimate)
-
-	CALL dfftw_execute_dft_c2r(plan,temp_tf,tab_out)
-
-	CALL dfftw_destroy_plan(plan)
-
-	CALL dfftw_cleanup_threads()
-
-	!$OMP END SINGLE
-	RETURN
+    
+    CALL dfftw_plan_dft_c2r_3d(plan,lx,ly,lz,temp_tf,tab_out,fftw_estimate)
+    
+    CALL dfftw_execute_dft_c2r(plan,temp_tf,tab_out)
+    
+    CALL dfftw_destroy_plan(plan)
+    
+    CALL dfftw_cleanup_threads()
+    
+    !$OMP END SINGLE
+    RETURN
 
 END SUBROUTINE FFTW_COMPLEX_2_REAL
 
