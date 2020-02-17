@@ -3,18 +3,22 @@ PROGRAM MainProgramTest
 	USE OMP_LIB
 	IMPLICIT NONE
 
-	REAL(kind=8), ALLOCATABLE    :: real_init(:,:,:), real_recons(:,:,:)
+	REAL(kind=8),    ALLOCATABLE :: real_init(:,:,:), real_recons(:,:,:)
 	COMPLEX(kind=8), ALLOCATABLE :: tf_init(:,:,:) 
-	INTEGER(kind=4) :: i,j,k,nx,ny,nz
+	INTEGER(kind=4) :: i,j,k,nx,ny,nz,inputs(4)
 	REAL(kind=8)    :: pi, pi2, val1, val2, val3
 	REAL(kind=8)    :: otime1, otime2, time1, time2 
+
+	inputs = READ_INPUT("input.data")
+
+	!$ CALL OMP_SET_NUM_THREADS(inputs(1))
 
 	CALL cpu_time(time1)
 	!$ otime1 = OMP_GET_WTIME()
 	! Parameters
-	nx = 696 
-	ny = 696 
-	nz = 696 
+	nx = inputs(2)
+	ny = inputs(3)
+	nz = inputs(4)
 
 	pi  = acos(-1.d0)
 	pi2 = 2.d0 * pi
@@ -39,45 +43,57 @@ PROGRAM MainProgramTest
 	END DO
 	!$OMP END DO
 
-!	!$OMP END PARALLEL
 	PRINT*, "Entering fftw ..."
-!	!$OMP SINGLE
-!	!$OMP CRITICAL
 	CALL FFTW_REAL_2_COMPLEX(nx,ny,nz,real_init,tf_init)
-!	!$OMP END CRITICAL
-!	!$OMP END SINGLE
 
-!	!$OMP SINGLE
-!	!$OMP CRITICAL
 	CALL FFTW_COMPLEX_2_REAL(nx,ny,nz,tf_init,real_recons)
-!	!$OMP END CRITICAL
-!	!$OMP END SINGLE
 
-
-	!$OMP END PARALLEL
-
-	val1 = MAXVAL(ABS(tf_init))
-	val2 = MAXVAL(ABS(real_init(:,:,:)-real_recons(:,:,:)))
-	PRINT*, "Maxval modulo tf init =", val1
-	PRINT*, "Maxval erreur reconst =", val2
-	DEALLOCATE(real_init)
-	DEALLOCATE(real_recons)
-	DEALLOCATE(tf_init)
-
-   CALL cpu_time(time2)
-	!$ otime2 = OMP_GET_WTIME()
-	
-	PRINT*, "Elapsed time : ",otime2-otime1 ,"s."
-
+    !$OMP END PARALLEL
+    
+    val1 = MAXVAL(ABS(tf_init))
+    val2 = MAXVAL(ABS(real_init(:,:,:)-real_recons(:,:,:)))
+    PRINT*, "Maxval modulo tf init =", val1
+    PRINT*, "Maxval erreur reconst =", val2
+    DEALLOCATE(real_init)
+    DEALLOCATE(real_recons)
+    DEALLOCATE(tf_init)
+    
+    CALL cpu_time(time2)
+    !$ otime2 = OMP_GET_WTIME()
+    
+    PRINT*, "Elapsed time : ",otime2-otime1 ,"s."
+    
 !	CALL PARALLEL_HELLO_WORLD()
 !	CALL PARALLEL_COUNT() 
+
+CONTAINS
+
+	FUNCTION READ_INPUT(filenm) RESULT(inputs)
+
+		IMPLICIT NONE
+
+		CHARACTER(10), INTENT(IN)   :: filenm
+		INTEGER(kind=4)             :: inputs(4)
+		CHARACTER(LEN=8), PARAMETER :: FMT1 = '(a16,i3)'
+	    CHARACTER(16)               :: inputStr
+        
+	    OPEN(UNIT=2, FILE=filenm)
+	    READ(2,FMT1) inputStr, inputs(1)
+	    READ(2,FMT1) inputStr, inputs(2)
+	    READ(2,FMT1) inputStr, inputs(3)
+	    READ(2,FMT1) inputStr, inputs(4)
+        CLOSE(UNIT=2)
+		
+		RETURN 
+
+	END FUNCTION READ_INPUT
 
 END PROGRAM MainProgramTest      
 
 !____________________________________________________________________________
 SUBROUTINE FFTW_REAL_2_COMPLEX(lx,ly,lz,tab_in, tab_tf)
 
-   USE OMP_LIB
+    USE OMP_LIB
 	USE, INTRINSIC :: iso_c_binding
 	INCLUDE 'fftw3.f03'
 
@@ -86,12 +102,13 @@ SUBROUTINE FFTW_REAL_2_COMPLEX(lx,ly,lz,tab_in, tab_tf)
 	COMPLEX(kind=8), INTENT(OUT) :: tab_tf(lx/2+1, ly, lz)
 	INTEGER(kind=8)	:: plan
 	INTEGER(kind=8)	:: N_threads 
-	REAL(kind=8)	   :: iRet 
+	REAL(kind=8)	:: iRet 
 !	INTEGER				:: fftw_estimate
 !	PARAMETER(fftw_estimate=64)
 
+
 	!$OMP SINGLE
-   N_threads = OMP_GET_MAX_THREADS()
+    N_threads = OMP_GET_MAX_THREADS()
 	
 	PRINT*, "Number of threads : ", N_threads	
 	CALL dfftw_init_threads(iRet)
@@ -100,7 +117,7 @@ SUBROUTINE FFTW_REAL_2_COMPLEX(lx,ly,lz,tab_in, tab_tf)
 		STOP
 	END IF
 
-   CALL dfftw_plan_with_nthreads(N_threads)
+    CALL dfftw_plan_with_nthreads(N_threads)
 
 	CALL dfftw_plan_dft_r2c_3d(plan,lx,ly,lz,tab_in,tab_tf,fftw_estimate)
 
@@ -136,7 +153,7 @@ SUBROUTINE FFTW_COMPLEX_2_REAL(lx,ly,lz,tab_tf, tab_out)
 
 	!$OMP SINGLE
 	temp_tf(:,:,:) = tab_tf(:,:,:)
-   N_threads = OMP_GET_MAX_THREADS()
+    N_threads = OMP_GET_MAX_THREADS()
 	
 	PRINT*, "Number of threads : ", N_threads	
 	CALL dfftw_init_threads(iRet)
@@ -145,7 +162,7 @@ SUBROUTINE FFTW_COMPLEX_2_REAL(lx,ly,lz,tab_tf, tab_out)
 		STOP
 	END IF
 
-   CALL dfftw_plan_with_nthreads(N_threads)
+    CALL dfftw_plan_with_nthreads(N_threads)
 
 	CALL dfftw_plan_dft_c2r_3d(plan,lx,ly,lz,temp_tf,tab_out,fftw_estimate)
 
